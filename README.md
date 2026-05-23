@@ -1,49 +1,42 @@
 <div align="center">
-  <img width="1200" height="475" alt="Bato's Staircase Escape" src="https://placehold.co/1200x475/1a1a2e/ff3333?text=Bato's+Staircase+Escape" />
+  <img width="800" height="300" alt="Bato's Staircase Escape" src="https://placehold.co/800x300/1a1a2e/ff3333?text=Bato%27s+Staircase+Escape" />
 </div>
 
 # 🏃 Bato's Staircase Escape
 
-A 2D pixelated endless runner game where Senator Ronald "Bato" dela Rosa runs up a never-ending staircase to evade an ICC arrest warrant. Built with HTML5 Canvas and vanilla JavaScript.
+A 2D pixelated endless runner where Senator Bato runs up a staircase to evade an ICC arrest warrant.
 
-**Play live:** [https://bato-staircase-escape.vercel.app](https://bato-staircase-escape.vercel.app)
+**Play live:** [bato-s-staircase-escape.vercel.app](https://bato-s-staircase-escape.vercel.app/)
 
-## 🎮 Game Overview
+## 🎮 How to Play
 
-Senator Bato is inside an ominous government building. The Philippine Supreme Court has denied his appeal to block the ICC warrant. Now, ICC marshals and NBI agents are chasing him up an endless staircase. How long can you survive?
+| Action | Desktop | Mobile |
+|--------|---------|--------|
+| Move Left | ← or A | Hold left side of screen |
+| Move Right | → or D | Hold right side of screen |
 
-## 🕹️ How to Play
+Avoid ICC marshals, NBI agents, and warrants. Collect power-ups to survive longer. Speed increases every 20 seconds.
 
-| Control | Desktop | Mobile |
-|---------|---------|--------|
-| Move Left | ← or A | Touch LEFT button or swipe |
-| Move Right | → or D | Touch RIGHT button or swipe |
-| Pause | P key | Pause button (top-right) |
+## ⚡ Power-ups
 
-**Objective:** Avoid obstacles (ICC marshals, NBI agents, ICC warrants) and collect power-ups to survive as long as possible. The game speed increases every 20 seconds.
-
-## 📱 Mobile Features
-
-- On-screen touch buttons (60px minimum)
-- Swipe left/right anywhere on screen
-- Haptic feedback (vibration on collect/obstacle)
-- Orientation detection (landscape recommended)
-- High score saved locally
-- PWA installable to home screen
+- 🛡️ **Political Shield** – Absorbs 1 hit
+- 👁️ **Media Blind Spot** – Temporary invisibility
+- 💨 **Fog of Drug War** – Slows down the game
 
 ## 🖥️ Run Locally
 
-**Prerequisites:** Any web browser (no Node.js required for basic version)
+Download `index.html` and double-click to play. No server needed.
 
-### Simple method (no server needed):
-1. Download `index.html`
-2. Double-click to open in your browser
-3. Play immediately
+## 📝 License
 
-### With local server (optional):
-```bash
-# Using Python 3
-python -m http.server 8000
+MIT – feel free to fork and modify.
 
-# Using Node.js (if you have npx)
-npx serve .
+## ⚠️ Disclaimer
+
+Satirical fiction. Not affiliated with Senator Bato, the ICC, or any government entity.
+
+---
+
+<div align="center">
+  Run. Dodge. Survive. The Hague awaits.
+</div>
