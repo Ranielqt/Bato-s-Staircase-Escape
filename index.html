@@ -1,0 +1,1835 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Bato's Staircase Escape - 64-Bit Retro Arcade Game</title>
+    <!-- Retro Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet" />
+    <!-- Tailwind CSS CDN for visual wrapper styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      body {
+        font-family: 'Courier Prime', monospace;
+        image-rendering: pixelated;
+        overflow: hidden;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      canvas {
+        background-color: #050505;
+        image-rendering: pixelated;
+        image-rendering: crisp-edges;
+        box-shadow: 0 0 50px rgba(255, 0, 51, 0.25);
+        max-width: 100%;
+        max-height: 100%;
+      }
+      /* Custom retro animation */
+      @keyframes neonPulse {
+        0%, 100% { opacity: 0.3; text-shadow: 0 0 8px #ff0033; }
+        50% { opacity: 1; text-shadow: 0 0 16px #ff0033, 0 0 24px #ff0033; }
+      }
+      .neon-pulse {
+        animation: neonPulse 2s infinite ease-in-out;
+      }
+      /* Frame boundaries for the virtual screen (CRT scanlines) */
+      .lcd-glow::after {
+        content: " ";
+        display: block;
+        position: absolute;
+        top: 0; left: 0; bottom: 0; right: 0;
+        background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(235, 0, 50, 0.06), rgba(0, 240, 240, 0.02), rgba(0, 50, 240, 0.06));
+        background-size: 100% 4px, 3px 100%;
+        pointer-events: none;
+        z-index: 15;
+      }
+    </style>
+  </head>
+  <body class="bg-[#0a0a0a] text-white flex flex-col items-center justify-between min-h-screen p-2 md:p-4 selection:bg-red-600">
+    <!-- Header visual / Police Sirens -->
+    <header class="w-full max-w-4xl flex items-center justify-between py-2 border-b border-[#ff0033]/30 font-mono text-xs tracking-wider">
+      <div id="siren-left" class="w-6 h-6 rounded-none bg-red-950 border-2 border-red-700 transition-all duration-100 shadow-[0_0_15px_rgba(255,0,0,0)]"></div>
+      <h1 class="text-xs md:text-sm text-center text-[#ff0033] font-bold tracking-widest neon-pulse">
+        BATO'S STAIRCASE ESCAPE (64-BIT ULTRA)
+      </h1>
+      <div id="siren-right" class="w-6 h-6 rounded-none bg-red-950 border-2 border-red-700 transition-all duration-100 shadow-[0_0_15px_rgba(255,0,0,0)]"></div>
+    </header>
+
+    <!-- Main Game Frame Column -->
+    <main class="relative flex flex-col items-center justify-center flex-grow w-full max-w-[640px] aspect-[16/11] my-2 select-none">
+      
+      <!-- Inside Screen Overlay for Title / Controls / Game Over / Win -->
+      <div id="overlay-screen" class="absolute inset-0 bg-black/95 z-20 flex flex-col items-center justify-between p-3 md:p-6 text-center border-4 border-[#ff0033] rounded-none w-full h-full mx-auto overflow-y-auto shadow-[0_0_60px_rgba(255,0,51,0.45)] select-none">
+        <!-- Inside start overlay -->
+        <div id="intro-block" class="flex flex-col items-center justify-center gap-3 py-2">
+          <h2 class="text-[#ff0033] text-sm md:text-lg font-black tracking-widest leading-relaxed uppercase shadow-sm drop-shadow-[0_4px_4px_rgba(0,0,0,0.8)] flex items-center justify-center gap-2">
+            BATO'S STAIRCASE ESCAPE <span class="bg-gradient-to-r from-cyan-400 to-fuchsia-500 text-black text-[9px] font-sans px-2 py-0.5 rounded font-bold tracking-normal animate-pulse shadow-md select-none">64-BIT</span>
+          </h2>
+          <p class="text-[9px] md:text-[10px] text-zinc-400 max-w-lg leading-relaxed border-y border-[#ff0033]/20 py-3 my-1 text-justify font-mono">
+            Senator Ronald "Bato" dela Rosa faces an arrest warrant after his ICC drug-war block appeal was rejected! ICC marshals and NBI agents are charging up the never-ending capitol staircases to arrest him. Steering him upward, you must outrun detention for as long as possible!
+          </p>
+          <div class="bg-black/90 border border-[#ff0033]/45 p-3 rounded-none text-[8.5px] md:text-[9.5px] text-left w-full space-y-2 font-mono">
+            <div class="text-[#00ffff] font-bold mb-1 text-center border-b border-[#ff0033]/20 pb-1 tracking-wider">// SYSTEM INSTRUCTIONS:</div>
+            <div>⌨️ <span class="text-[#ff0033] font-bold">A/D Keys / ARROWS</span> to run left/right</div>
+            <div>📱 <span class="text-[#00ffff] font-bold">MOBILE ESCAPE</span>: Hold left or right side of the screen/canvas directly!</div>
+            <div>🛡️ <span class="text-[#ffd700] font-bold">POLITICAL SHIELD</span>: Golden Shield (absorbs 1 crash)</div>
+            <div>👁️ <span class="text-[#00ffff] font-bold">MEDIA BLIND SPOT</span>: Invisibility (no physical collision)</div>
+            <div>💨 <span class="text-pink-500 font-bold">FOG OF DRUG WAR</span>: Slows down speed & obstacles</div>
+          </div>
+        </div>
+
+        <!-- Inside Game Over view -->
+        <div id="gameover-block" class="hidden flex flex-col items-center justify-center gap-4 py-4">
+          <h3 class="text-[#ff0033] text-base md:text-xl font-bold tracking-widest uppercase animate-pulse font-mono">// WARRANT SERVED //</h3>
+          <p class="text-[10px] text-zinc-400 font-bold my-1">"The ICC warrant cannot be evaded forever."</p>
+          <p id="gameover-stats" class="text-[9.5px] text-[#ffd700] bg-black/90 px-5 py-3 border border-[#ff0033]/40 rounded-none leading-loose font-mono">
+            STEPS CLIMBED: 0
+          </p>
+          <p class="text-[8px] text-zinc-500 max-w-md leading-relaxed my-1 font-mono uppercase tracking-widest">
+            COCKPIT REPORT: DETENTION STATUS CONFIRMED
+          </p>
+        </div>
+
+        <!-- Inside Win view -->
+        <div id="win-block" class="hidden flex flex-col items-center justify-center gap-3 py-4 font-mono">
+          <h3 class="text-[#ffd700] text-base md:text-xl font-bold tracking-widest uppercase">// ESCAPE DELAYED //</h3>
+          <p class="text-[10px] text-[#00ffff] font-bold my-1">"You delay arrest... but The Hague awaits."</p>
+          <p id="win-stats" class="text-[9.5px] text-[#ffd700] bg-black/90 px-5 py-3 border border-[#ffd700]/40 rounded-none leading-loose animate-pulse">
+            STEPS CLIMBED: 10,000+
+          </p>
+          <p class="text-[8px] text-zinc-400 max-w-md leading-relaxed my-1 text-center">
+            You successfully navigated Bato to the upper congressional helipad, escaping into momentary sanctuary!
+          </p>
+        </div>
+
+        <!-- Single unified button bottom section -->
+        <div class="w-full mt-3 flex flex-col items-center select-none">
+          <button id="start-btn" class="border-4 border-[#ff0033] bg-black text-[#ff0033] hover:bg-[#ff0033] hover:text-black uppercase font-bold tracking-widest transition-all duration-200 px-8 py-3 text-xs md:text-sm cursor-pointer rounded-none active:scale-95 shadow-[0_0_25px_rgba(255,0,0,0.3)] touch-action-manipulation">
+            LAUNCH ESCAPE PROTEM
+          </button>
+          
+          <!-- Soundtrack and score panel inside menu screen -->
+          <div class="mt-4 flex flex-col gap-1 text-[8px] text-zinc-500 font-mono tracking-widest">
+            <span id="highscore-label" class="text-zinc-400 font-bold">RECORD EVASION: 0 STEPS</span>
+            <span>💡 CLICK ANYWHERE FOR REAL-TIME RETRO SYNTH BEATS</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Real Game Canvas (forced retro resolution) -->
+      <div class="relative lcd-glow flex items-center justify-center w-full aspect-[16/11] overflow-hidden rounded-none bg-black border-4 border-[#1a1a1a] shadow-[0_0_40px_rgba(255,0,0,0.15)] touch-none select-none">
+        <canvas id="gameCanvas" width="640" height="440"></canvas>
+      </div>
+
+    </main>
+
+    <!-- Mobile Virtual Game Controller -->
+    <section class="relative w-full max-w-sm flex flex-row items-center justify-between gap-4 p-2 bg-[#050505] border-2 border-cyan-500/35 shadow-[0_0_20px_rgba(6,182,212,0.15)] select-none mb-2 font-mono">
+      <button id="btn-left" class="flex-grow flex items-center justify-center bg-black hover:bg-cyan-500 hover:text-black text-cyan-400 border-2 border-cyan-500 p-4 rounded-none text-base font-bold select-none cursor-pointer transition-all duration-150 active:bg-cyan-500 active:text-black">
+        ◀ L-TRIG
+      </button>
+
+      <div class="flex flex-col items-center justify-center gap-1 min-w-[100px] text-center select-none text-cyan-700">
+        <div class="text-[8px] tracking-widest font-bold">// 64-BIT D-PAD //</div>
+        <div class="text-[7px] text-zinc-500">VECTOR CONTROL</div>
+      </div>
+
+      <button id="btn-right" class="flex-grow flex items-center justify-center bg-black hover:bg-cyan-500 hover:text-black text-cyan-400 border-2 border-cyan-500 p-4 rounded-none text-base font-bold select-none cursor-pointer transition-all duration-150 active:bg-cyan-500 active:text-black">
+        R-TRIG ▶
+      </button>
+    </section>
+
+    <!-- Interactive stats sidebar panel -->
+    <footer class="w-full max-w-4xl py-3 flex flex-col md:flex-row items-center justify-between text-[8px] md:text-[10px] border-t border-[#ff0033]/20 text-zinc-500 gap-2 text-center md:text-left select-none font-mono tracking-wider">
+      <div>// HAGUE PROTOCOL UNSEALED</div>
+      <div>📍 STATUS: <span id="hud-status" class="text-[#ff0033] font-bold">STAIRWELL INFILTRATION</span></div>
+      <div>📊 STAMINA: <span id="hud-speed" class="text-[#00ffff] font-bold">1.00x COCKPIT</span></div>
+      <div>🏛️ SANCTUARY: <span class="text-[#ffd700] font-bold">CONGRESSIONAL HELIPAD (10,000 STEPS)</span></div>
+      <div>⚡ ENGINE: 64-BIT ULTRA RISC co-proc</div>
+    </footer>
+
+    <!-- Logic Script Container -->
+    <script>
+      // -------------------------------------------------------------
+      // Audio FX Controller using Web Audio API (Synthesizer Engine)
+      // -------------------------------------------------------------
+      class RetroAudioEngine {
+        constructor() {
+          this.ctx = null;
+          this.muted = false;
+        }
+
+        init() {
+          if (!this.ctx) {
+            this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+          }
+        }
+
+        playTone(frequency, type, duration, volume = 0.1) {
+          if (this.muted) return;
+          this.init();
+          if (!this.ctx) return;
+
+          try {
+            const osc = this.ctx.createOscillator();
+            const gainNode = this.ctx.createGain();
+
+            osc.type = type;
+            osc.frequency.setValueAtTime(frequency, this.ctx.currentTime);
+
+            gainNode.gain.setValueAtTime(volume, this.ctx.currentTime);
+            // Linear decay decay
+            gainNode.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+
+            osc.connect(gainNode);
+            gainNode.connect(this.ctx.destination);
+
+            osc.start();
+            osc.stop(this.ctx.currentTime + duration);
+          } catch (e) {
+            console.warn("Audio Context blocked:", e);
+          }
+        }
+
+        playStep(frequency = 70) {
+          // Low frequency triangular thud for run steps
+          this.playTone(frequency, 'triangle', 0.08, 0.25);
+        }
+
+        playCollect() {
+          this.init();
+          if (this.muted || !this.ctx) return;
+          try {
+            // High arpeggio chord beep (major triad retro progression!)
+            const now = this.ctx.currentTime;
+            const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+            notes.forEach((freq, idx) => {
+              const osc = this.ctx.createOscillator();
+              const gainNode = this.ctx.createGain();
+              osc.type = 'square';
+              osc.frequency.setValueAtTime(freq, now + idx * 0.05);
+              gainNode.gain.setValueAtTime(0.08, now + idx * 0.05);
+              gainNode.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.05 + 0.15);
+              osc.connect(gainNode);
+              gainNode.connect(this.ctx.destination);
+              osc.start(now + idx * 0.05);
+              osc.stop(now + idx * 0.05 + 0.18);
+            });
+          } catch(e) {}
+        }
+
+        playShieldBreak() {
+          this.init();
+          if (this.muted || !this.ctx) return;
+          try {
+            // White noise-like crunch explosion
+            const duration = 0.3;
+            const bufferSize = this.ctx.sampleRate * duration;
+            const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+              data[i] = Math.random() * 2 - 1;
+            }
+            const noise = this.ctx.createBufferSource();
+            noise.buffer = buffer;
+            const filter = this.ctx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(800, this.ctx.currentTime);
+            filter.frequency.exponentialRampToValueAtTime(100, this.ctx.currentTime + duration);
+
+            const gain = this.ctx.createGain();
+            gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+
+            noise.connect(filter);
+            filter.connect(gain);
+            gain.connect(this.ctx.destination);
+            noise.start();
+          } catch(e) {}
+        }
+
+        playGameOver() {
+          this.init();
+          if (this.muted || !this.ctx) return;
+          try {
+            // Sad slides down
+            const now = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gainNode = this.ctx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(260, now);
+            osc.frequency.linearRampToValueAtTime(60, now + 0.8);
+            gainNode.gain.setValueAtTime(0.2, now);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+            osc.connect(gainNode);
+            gainNode.connect(this.ctx.destination);
+            osc.start();
+            osc.stop(now + 0.85);
+          } catch(e) {}
+        }
+
+        playSiren() {
+          this.playTone(390, 'sawtooth', 0.12, 0.08);
+          // Dual beep simulation
+          setTimeout(() => {
+            this.playTone(490, 'sawtooth', 0.12, 0.08);
+          }, 150);
+        }
+      }
+
+      const SFX = new RetroAudioEngine();
+
+      // Ensure click on screen starts the window audios context
+      document.body.addEventListener('click', () => {
+        SFX.init();
+      }, { once: false });
+
+      // -------------------------------------------------------------
+      // CORE CANVAS SETUP & RENDERING PARAMS
+      // -------------------------------------------------------------
+      const canvas = document.getElementById('gameCanvas');
+      const ctx = canvas.getContext('2d');
+
+      // Static pixel resolution for retro 64-bit aspect scale (16:11 widescreen)
+      const CANVAS_WIDTH = 640;
+      const CANVAS_HEIGHT = 440;
+
+      // Ensure canvas fits cleanly
+      function runResize() {
+        // Keep canvas pixel coordinate buffer static, css handles visual scale bounds
+        canvas.style.width = '100%';
+        canvas.style.height = '100%';
+      }
+      window.addEventListener('resize', runResize);
+      runResize();
+
+      // UI Screens
+      const overlayScreen = document.getElementById('overlay-screen');
+      const introBlock = document.getElementById('intro-block');
+      const gameoverBlock = document.getElementById('gameover-block');
+      const winBlock = document.getElementById('win-block');
+      const startBtn = document.getElementById('start-btn');
+      const hudStatusEl = document.getElementById('hud-status');
+      const hudSpeedEl = document.getElementById('hud-speed');
+      const sirenLeft = document.getElementById('siren-left');
+      const sirenRight = document.getElementById('siren-right');
+      const highscoreLabel = document.getElementById('highscore-label');
+
+      // High Score Saving
+      function getHighScore() {
+        return parseInt(localStorage.getItem('bato_high_escape') || "0", 10);
+      }
+      function saveHighScore(score) {
+        const current = getHighScore();
+        if (score > current) {
+          localStorage.setItem('bato_high_escape', score.toString());
+        }
+      }
+      highscoreLabel.innerText = `HIGH ESCAPE SCORE: ${getHighScore()} STEPS`;
+
+      // -------------------------------------------------------------
+      // INPUT & CONTROL MANAGERS
+      // -------------------------------------------------------------
+      const keysPressed = {};
+      let touchLeftPressed = false;
+      let touchRightPressed = false;
+
+      // Keyboard Listeners
+      window.addEventListener('keydown', (e) => {
+        const key = e.key.toLowerCase();
+        if (['a', 'd', 'arrowleft', 'arrowright'].includes(key)) {
+          keysPressed[key] = true;
+        }
+      });
+      window.addEventListener('keyup', (e) => {
+        const key = e.key.toLowerCase();
+        if (['a', 'd', 'arrowleft', 'arrowright'].includes(key)) {
+          keysPressed[key] = false;
+        }
+      });
+
+      // Mobile touch screen controller layout links
+      const btnLeft = document.getElementById('btn-left');
+      const btnRight = document.getElementById('btn-right');
+
+      function setupTouchHandlers(btn, activeSetter) {
+        // Handle physical click/press, plus multitouch cleanly
+        btn.addEventListener('mousedown', (e) => { e.preventDefault(); activeSetter(true); });
+        btn.addEventListener('mouseup', (e) => { e.preventDefault(); activeSetter(false); });
+        btn.addEventListener('mouseleave', (e) => { e.preventDefault(); activeSetter(false); });
+        
+        btn.addEventListener('touchstart', (e) => { e.preventDefault(); activeSetter(true); });
+        btn.addEventListener('touchend', (e) => { e.preventDefault(); activeSetter(false); });
+        btn.addEventListener('touchcancel', (e) => { e.preventDefault(); activeSetter(false); });
+      }
+
+      setupTouchHandlers(btnLeft, (val) => { touchLeftPressed = val; });
+      setupTouchHandlers(btnRight, (val) => { touchRightPressed = val; });
+
+      // Direct touch on the canvas for effortless mobile control (tapping left or right half to steer)
+      function handleCanvasTouch(e) {
+        if (!gameState.running) return;
+        // Avoid blocking gestures on other page overlay selectors, but prevent default scroll/zoom behaviors on canvas
+        e.preventDefault();
+        
+        let leftChecked = false;
+        let rightChecked = false;
+        
+        const rect = canvas.getBoundingClientRect();
+        for (let i = 0; i < e.touches.length; i++) {
+          const touch = e.touches[i];
+          const touchX = touch.clientX - rect.left;
+          const halfWidth = rect.width / 2;
+          
+          if (touchX < halfWidth) {
+            leftChecked = true;
+          } else {
+            rightChecked = true;
+          }
+        }
+        
+        touchLeftPressed = leftChecked;
+        touchRightPressed = rightChecked;
+      }
+
+      canvas.addEventListener('touchstart', handleCanvasTouch, { passive: false });
+      canvas.addEventListener('touchmove', handleCanvasTouch, { passive: false });
+      canvas.addEventListener('touchend', (e) => {
+        if (gameState.running) {
+          e.preventDefault();
+        }
+        // Force evaluation of remaining active fingers
+        handleCanvasTouch(e);
+      }, { passive: false });
+      canvas.addEventListener('touchcancel', (e) => {
+        if (gameState.running) {
+          e.preventDefault();
+        }
+        handleCanvasTouch(e);
+      }, { passive: false });
+
+      // -------------------------------------------------------------
+      // STATE GAME DATA
+      // -------------------------------------------------------------
+      let gameState = {
+        running: false,
+        ticks: 0,
+        scrollY: 0,
+        score: 0,
+        highScore: getHighScore(),
+        speedBase: 1.1, // starts extra slow and friendly for entry!
+        speedMultiplier: 1.0,
+        currentSpeed: 1.1,
+        
+        // Player state
+        bato: {
+          x: CANVAS_WIDTH / 2,
+          y: CANVAS_HEIGHT - 120,
+          vx: 0,
+          width: 48,
+          height: 64,
+          shielded: false,
+          shieldTimer: 0,
+          invisible: false,
+          invisibleTimer: 0,
+          fogActive: false,
+          fogTimer: 0
+        },
+
+        // Obstacles array
+        obstacles: [],
+        powerups: [],
+        particles: [],
+
+        spawnTimer: 0,
+        sirenTick: 0
+      };
+
+      // -------------------------------------------------------------
+      // ENTITY DRAWERS
+      // -------------------------------------------------------------
+
+      function drawBatoSprite(bctx, x, y, playerState, animationTick) {
+        bctx.save();
+        
+        // 64-bit dynamic shadow under player leg bases representing 3D light projection
+        bctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+        bctx.beginPath();
+        bctx.ellipse(x + 24, y + 59, 22, 6, 0, 0, 2 * Math.PI);
+        bctx.fill();
+        
+        // Active visual effect for Invisibility powerup (translucent blink)
+        if (playerState.invisible) {
+          bctx.globalAlpha = 0.35 + Math.sin(animationTick * 0.3) * 0.15;
+        }
+        
+        // 1. Bald head with warm skin tone matching portrait
+        const skinTone = '#df9b72'; 
+        bctx.fillStyle = skinTone;
+        bctx.fillRect(x + 12, y + 4, 24, 18);
+        bctx.fillRect(x + 10, y + 8, 28, 12);
+        
+        // Glistening shiny bald reflection (Majestic shiny pate!)
+        bctx.fillStyle = '#ffffff';
+        bctx.fillRect(x + 16, y + 6, 8, 4);
+        bctx.fillRect(x + 24, y + 6, 4, 2);
+        
+        // Facial details (Worried, gasping, sweat details)
+        bctx.fillStyle = '#1e1b4b'; // Bold eyebrows
+        bctx.fillRect(x + 14, y + 10, 6, 2);
+        bctx.fillRect(x + 28, y + 10, 6, 2);
+
+        bctx.fillStyle = '#000000';
+        bctx.fillRect(x + 16, y + 12, 3, 3); // Left eye
+        bctx.fillRect(x + 29, y + 12, 3, 3); // Right eye
+        
+        bctx.fillStyle = '#451a03'; // brown nose contour
+        bctx.fillRect(x + 22, y + 14, 4, 2);
+        
+        // Determined, focused smile/mouth
+        bctx.fillStyle = '#3f1a1a';
+        bctx.fillRect(x + 21, y + 18, 6, 2);
+        
+        // Flying sweat droplets
+        if (gameState.running) {
+          bctx.fillStyle = '#38bdf8'; // light sky blue sweat
+          if (animationTick % 12 < 6) {
+            bctx.fillRect(x - 5, y + 14, 3, 3);
+            bctx.fillRect(x + 49, y + 20, 3, 2);
+          } else {
+            bctx.fillRect(x - 3, y + 22, 2, 3);
+            bctx.fillRect(x + 51, y + 11, 4, 2);
+          }
+        }
+
+        // 2. Sharp Blue Checkered/PGrid Suit Blazer (replacing Barong)
+        const suitBaseColor = '#1d3d75'; // Royal/Navy deep blue jacket base
+        bctx.fillStyle = suitBaseColor;
+        bctx.fillRect(x + 6, y + 22, 36, 24); // main body of suit
+        bctx.fillRect(x + 10, y + 46, 28, 3);  // drop overhang of suit coat
+
+        // Plaid Checked grid pattern on suit blazer (Vertical & Horizontal fine details)
+        bctx.fillStyle = '#4a6fa5'; // Slate-blue secondary thread grid color
+        bctx.fillRect(x + 10, y + 22, 1, 24); // Vert line left
+        bctx.fillRect(x + 37, y + 22, 1, 24); // Vert line right
+        bctx.fillRect(x + 20, y + 22, 1, 24); // Vert line mid-left
+        bctx.fillRect(x + 27, y + 22, 1, 24); // Vert line mid-right
+        bctx.fillRect(x + 6, y + 28, 36, 1);  // Hori grid upper
+        bctx.fillRect(x + 6, y + 36, 36, 1);  // Hori grid middle
+        bctx.fillRect(x + 6, y + 43, 36, 1);  // Hori grid lower
+        
+        // Crisp White Collared Shirt undercoat
+        bctx.fillStyle = '#ffffff';
+        bctx.fillRect(x + 19, y + 22, 10, 11); // V-neck inner shirt white block
+        // Collar lapel folds
+        bctx.fillRect(x + 17, y + 22, 2, 4); 
+        bctx.fillRect(x + 29, y + 22, 2, 4);
+
+        // Gold/Bronze checkered necktie from portrait
+        bctx.fillStyle = '#a16207'; // bronze-gold tie base
+        bctx.fillRect(x + 22, y + 23, 4, 11);
+        bctx.fillStyle = '#facc15'; // shimmering gold highlight checks on tie
+        bctx.fillRect(x + 22, y + 25, 2, 1);
+        bctx.fillRect(x + 24, y + 29, 2, 1);
+        bctx.fillRect(x + 22, y + 32, 2, 1);
+
+        // Lapels of the blazer folding over the shirt/tie
+        bctx.fillStyle = '#152b57'; // shadow dark navy blue
+        bctx.fillRect(x + 14, y + 22, 4, 15); // left fold
+        bctx.fillRect(x + 30, y + 22, 4, 15); // right fold
+
+        // 3. Matching blue formal trousers (tuxedo/slacks style)
+        bctx.fillStyle = '#14274c'; // matching deeper blue pants
+        bctx.fillRect(x + 10, y + 48, 28, 8);
+        
+        // 4. Arms running & body movement (Suited with crisp white cuffs!)
+        const isAltArm = (Math.floor(animationTick / 6) % 2 === 0);
+        bctx.fillStyle = '#18315c'; // suit jacket sleeves
+        if (isAltArm) {
+          bctx.fillRect(x, y + 22, 6, 12); // Left sleeve up
+          bctx.fillRect(x + 42, y + 26, 6, 12); // Right sleeve down
+          
+          // Crisp white cuffs peaking out of blazer sleeves
+          bctx.fillStyle = '#ffffff';
+          bctx.fillRect(x, y + 21, 6, 2);
+          bctx.fillRect(x + 42, y + 36, 6, 2);
+          
+          // Skin hands
+          bctx.fillStyle = skinTone;
+          bctx.fillRect(x, y + 17, 6, 4);
+          bctx.fillRect(x + 42, y + 38, 6, 4);
+        } else {
+          bctx.fillRect(x, y + 26, 6, 12); // Left sleeve down
+          bctx.fillRect(x + 42, y + 22, 6, 12); // Right sleeve up
+          
+          // Crisp white cuffs peaking out of blazer sleeves
+          bctx.fillStyle = '#ffffff';
+          bctx.fillRect(x, y + 36, 6, 2);
+          bctx.fillRect(x + 42, y + 21, 6, 2);
+          
+          // Skin hands
+          bctx.fillStyle = skinTone;
+          bctx.fillRect(x, y + 38, 6, 4);
+          bctx.fillRect(x + 42, y + 17, 6, 4);
+        }
+
+        // 5. Legs running (Foot frames cycling)
+        const legFrame = Math.floor(animationTick / 5) % 4;
+        bctx.fillStyle = '#111111'; // shiny black security shoes
+        if (legFrame === 0) {
+          // Left shoe forward, Right shoe backward
+          bctx.fillRect(x + 10, y + 55, 8, 5); // left thigh slacks
+          bctx.fillRect(x + 28, y + 55, 8, 3); // right thigh slacks
+          bctx.fillRect(x + 6, y + 60, 8, 4);  // left shoe
+          bctx.fillRect(x + 30, y + 58, 8, 4); // right shoe
+        } else if (legFrame === 1 || legFrame === 3) {
+          // Centered running stride
+          bctx.fillRect(x + 13, y + 55, 8, 5);
+          bctx.fillRect(x + 25, y + 55, 8, 5);
+          bctx.fillRect(x + 13, y + 60, 8, 4);
+          bctx.fillRect(x + 25, y + 60, 8, 4);
+        } else {
+          // Right shoe forward, Left shoe backward
+          bctx.fillRect(x + 10, y + 55, 8, 3);
+          bctx.fillRect(x + 28, y + 55, 8, 5);
+          bctx.fillRect(x + 8, y + 58, 8, 4);
+          bctx.fillRect(x + 32, y + 60, 8, 4);
+        }
+        
+        // 6. Shield visual (Golden orbits if active)
+        if (playerState.shielded) {
+          bctx.strokeStyle = '#facc15'; // shimmering golden circle
+          bctx.lineWidth = 2.5;
+          bctx.setLineDash([6, 6]);
+          bctx.lineDashOffset = -animationTick * 1.8;
+          bctx.shadowColor = '#eab308';
+          bctx.shadowBlur = 10;
+          bctx.beginPath();
+          bctx.ellipse(x + 24, y + 32, 36, 43, 0, 0, 2 * Math.PI);
+          bctx.stroke();
+          
+          bctx.fillStyle = 'rgba(234, 179, 8, 0.1)';
+          bctx.beginPath();
+          bctx.ellipse(x + 24, y + 32, 36, 43, 0, 0, 2 * Math.PI);
+          bctx.fill();
+        }
+        
+        // 7. Fog aura overlay
+        if (playerState.fogActive) {
+          bctx.shadowBlur = 12;
+          bctx.shadowColor = '#d8b4fe';
+          bctx.strokeStyle = '#c084fc';
+          bctx.lineWidth = 1.5;
+          bctx.beginPath();
+          bctx.arc(x + 24, y + 32, 39, 0, 2 * Math.PI);
+          bctx.stroke();
+        }
+        
+        bctx.restore();
+      }
+
+      function drawICCMarshal(bctx, x, y, width, height, animationTick) {
+        bctx.save();
+        
+        // 64-bit dynamic shadow under marshall
+        bctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+        bctx.beginPath();
+        bctx.ellipse(x + width / 2, y + height - 2, 18, 5, 0, 0, 2 * Math.PI);
+        bctx.fill();
+        
+        // 1. Sleek black tactical SWAT helmet
+        bctx.fillStyle = '#0f172a'; // extremely dark gray/blue slab
+        bctx.fillRect(x + 10, y + 4, 28, 16);
+        bctx.fillRect(x + 8, y + 8, 32, 11);
+        
+        // High glow turquoise target tracking visor
+        bctx.fillStyle = '#22d3ee';
+        bctx.fillRect(x + 12, y + 10, 24, 4);
+        bctx.fillStyle = '#ffffff'; // light glint
+        bctx.fillRect(x + 15, y + 10, 4, 1);
+        
+        // Under helmet chin neck strap
+        bctx.fillStyle = '#1e293b';
+        bctx.fillRect(x + 14, y + 20, 20, 3);
+        
+        // 2. Heavy tactical body shield vest with text 'ICC'
+        bctx.fillStyle = '#020617'; // pure void black armor
+        bctx.fillRect(x + 6, y + 23, 36, 25);
+        
+        // Yellow armor highlights
+        bctx.fillStyle = '#eab308';
+        bctx.fillRect(x + 6, y + 23, 36, 2); // collar line
+        
+        // High visibility yellow letter "I C C" insignia
+        bctx.fillStyle = '#facc15';
+        bctx.font = 'bold 9px monospace';
+        bctx.fillText('I C C', x + 10, y + 37);
+        
+        // 3. Slate-gray SWAT combat cargo pants
+        bctx.fillStyle = '#334155'; // cargo grey-slate
+        bctx.fillRect(x + 10, y + 48, 28, 10);
+        
+        // Running boots animation
+        bctx.fillStyle = '#090d16'; // heavy boots
+        const legFrame = Math.floor(animationTick / 6) % 3;
+        if (legFrame === 0) {
+          bctx.fillRect(x + 8, y + 58, 8, 6);
+          bctx.fillRect(x + 28, y + 58, 8, 6);
+        } else if (legFrame === 1) {
+          bctx.fillRect(x + 5, y + 58, 9, 3); // shoe forward
+          bctx.fillRect(x + 28, y + 58, 8, 6);
+          bctx.fillRect(x + 5, y + 61, 6, 3);
+        } else {
+          bctx.fillRect(x + 10, y + 58, 8, 6);
+          bctx.fillRect(x + 30, y + 58, 9, 3);
+          bctx.fillRect(x + 33, y + 61, 6, 3);
+        }
+        
+        bctx.restore();
+      }
+
+      function drawNBIAgent(bctx, x, y, width, height, animationTick) {
+        bctx.save();
+        
+        // 64-bit dynamic shadow under agent
+        bctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+        bctx.beginPath();
+        bctx.ellipse(x + width / 2, y + height - 2, 18, 5, 0, 0, 2 * Math.PI);
+        bctx.fill();
+        
+        // 1. Signature golden yellow caps
+        bctx.fillStyle = '#fbbf24';// yellow-400
+        bctx.fillRect(x + 12, y + 2, 24, 8);
+        bctx.fillRect(x + 24, y + 6, 15, 4); // cap visor
+        
+        // Face skin
+        bctx.fillStyle = '#f3af7c';
+        bctx.fillRect(x + 14, y + 10, 20, 10);
+        
+        // Dark retro aviator sunglasses
+        bctx.fillStyle = '#1e293b';
+        bctx.fillRect(x + 16, y + 12, 17, 3);
+        bctx.fillRect(x + 18, y + 15, 4, 2);
+        bctx.fillRect(x + 25, y + 15, 4, 2);
+        
+        // 2. Heavy Royal Blue Agent windbreaker jacket
+        bctx.fillStyle = '#1e3a8a'; // classic NBI deep blue jacket
+        bctx.fillRect(x + 6, y + 20, 36, 26);
+        
+        // High-contrast yellow layout collar trim
+        bctx.fillStyle = '#fbbf24';
+        bctx.fillRect(x + 14, y + 20, 20, 2);
+        
+        // Bold yellow yellow pixel text "NBI"
+        bctx.fillStyle = '#fbbf24';
+        bctx.font = 'bold 9px monospace';
+        bctx.fillText('N B I', x + 11, y + 35);
+        
+        // 3. Khaki pants slacks
+        bctx.fillStyle = '#a16207'; // tan khaki brown
+        bctx.fillRect(x + 10, y + 46, 28, 12);
+        
+        // Brown shoes movement
+        bctx.fillStyle = '#451a03';
+        const legFrame = Math.floor(animationTick / 6) % 3;
+        if (legFrame === 0) {
+          bctx.fillRect(x + 8, y + 58, 8, 6);
+          bctx.fillRect(x + 28, y + 58, 8, 6);
+        } else {
+          bctx.fillRect(x + 10, y + 58, 8, 4);
+          bctx.fillRect(x + 28, y + 58, 8, 6);
+        }
+        
+        bctx.restore();
+      }
+
+      function drawSpinningGavel(bctx, x, y, size, angle) {
+        bctx.save();
+        
+        // 64-bit dynamic shadow projected onto staircase plane below gavel
+        bctx.fillStyle = 'rgba(0,0,0,0.25)';
+        bctx.beginPath();
+        bctx.ellipse(x + size / 2, y + size + 8, size / 2, 4, 0, 0, 2 * Math.PI);
+        bctx.fill();
+        
+        bctx.translate(x + size / 2, y + size / 2);
+        bctx.rotate(angle);
+        
+        // Gavel head block - Dark Wood Mahogany
+        bctx.fillStyle = '#78350f'; // wood amber-900
+        bctx.fillRect(-16, -7, 32, 14);
+        
+        // Gilded gold bands at both rim ends of head (Supreme court prestige edge!)
+        bctx.fillStyle = '#f59e0b'; // amber-500
+        bctx.fillRect(-16, -7, 4, 14);
+        bctx.fillRect(12, -7, 4, 14);
+        
+        // Gavel handle
+        bctx.fillStyle = '#92400e'; // sienna
+        bctx.fillRect(-3, 7, 6, 22);
+        
+        // Gold tip on bottom of handle
+        bctx.fillStyle = '#f59e0b';
+        bctx.fillRect(-3, 25, 6, 4);
+        
+        bctx.restore();
+      }
+
+      function drawWarrantPaper(bctx, x, y, width, height, animationTick) {
+        bctx.save();
+        // Sways slightly left and right as it drifts down
+        const sway = Math.sin(animationTick * 0.12) * 8;
+        
+        // 64-bit dynamic shadow projected beneath warrant
+        bctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+        bctx.beginPath();
+        bctx.ellipse(x + sway + width / 2, y + height + 10, width / 2, 4, 0, 0, 2 * Math.PI);
+        bctx.fill();
+        
+        bctx.translate(x + sway, y);
+        
+        // White warrant parchment outline
+        bctx.fillStyle = '#f1f5f9';
+        bctx.fillRect(0, 0, width, height);
+        
+        bctx.strokeStyle = '#94a3b8';
+        bctx.lineWidth = 1.5;
+        bctx.strokeRect(0, 0, width, height);
+        
+        // Faded lines of indictment paragraph
+        bctx.fillStyle = '#64748b';
+        bctx.fillRect(4, 6, width - 8, 2);
+        bctx.fillRect(4, 11, width - 11, 2);
+        bctx.fillRect(4, 16, width - 8, 2);
+        bctx.fillRect(4, 21, width - 13, 2);
+        
+        // Bright alarming RED ink stamp spelling "ARREST WARRANT" diagonal or bottom center
+        bctx.fillStyle = 'rgba(239, 68, 68, 0.85)';
+        bctx.fillRect(4, 25, width - 8, 10);
+        bctx.fillStyle = '#ffffff';
+        bctx.font = 'bold 6px sans-serif';
+        bctx.fillText('WARRANT', 6, 32);
+        
+        bctx.restore();
+      }
+
+      // -------------------------------------------------------------
+      // POWER-UP DRAWER FUNCTIONS
+      // -------------------------------------------------------------
+
+      function drawShieldPowerup(bctx, x, y, size, animationTick) {
+        bctx.save();
+        const floatY = Math.sin(animationTick * 0.1) * 5;
+        bctx.translate(x, y + floatY);
+        
+        // Shiny golden shield shield Crest
+        bctx.fillStyle = '#eab308'; // shimmering deep yellow gold
+        bctx.beginPath();
+        bctx.moveTo(size / 2, 2);
+        bctx.lineTo(size - 2, 7);
+        bctx.lineTo(size - 4, size * 0.6);
+        bctx.quadraticCurveTo(size / 2, size - 2, size / 2, size);
+        bctx.quadraticCurveTo(2, size - 2, 4, size * 0.6);
+        bctx.lineTo(2, 7);
+        bctx.closePath();
+        bctx.fill();
+        
+        // Inner layer
+        bctx.fillStyle = '#b45309'; // darker bronze
+        bctx.beginPath();
+        bctx.moveTo(size / 2, 6);
+        bctx.lineTo(size - 6, 10);
+        bctx.lineTo(size - 8, size * 0.55);
+        bctx.quadraticCurveTo(size / 2, size - 5, size / 2, size - 3);
+        bctx.quadraticCurveTo(6, size * 0.55, 8, size * 0.55);
+        bctx.lineTo(6, 10);
+        bctx.closePath();
+        bctx.fill();
+        
+        // Flashing star in center
+        bctx.fillStyle = (animationTick % 16 < 8) ? '#ffffff' : '#facc15';
+        bctx.beginPath();
+        bctx.arc(size / 2, size / 2 - 2, 4, 0, 2 * Math.PI);
+        bctx.fill();
+        
+        bctx.restore();
+      }
+
+      function drawCameraPowerup(bctx, x, y, size, animationTick) {
+        bctx.save();
+        const floatY = Math.sin(animationTick * 0.09 + 1) * 5;
+        bctx.translate(x, y + floatY);
+        
+        // Press broadcast video camera
+        bctx.fillStyle = '#334155'; // grey steel
+        bctx.fillRect(4, 10, size - 14, size - 18);
+        bctx.fillStyle = '#0f172a'; // camera glass
+        bctx.fillRect(size - 10, 14, 8, 11);
+        
+        // Top news reporter antenna pole
+        bctx.fillStyle = '#64748b';
+        bctx.fillRect(10, 3, 2, 7);
+        
+        // Bright flashing red LED light
+        if (animationTick % 14 < 7) {
+          bctx.fillStyle = '#ef4444'; // Recording LIVE RED light
+          bctx.fillRect(9, 1, 4, 4);
+        }
+        
+        // Bright RED diagonal cancel bar
+        bctx.strokeStyle = '#ef4444';
+        bctx.lineWidth = 3.5;
+        bctx.beginPath();
+        bctx.moveTo(1, 1);
+        bctx.lineTo(size - 1, size - 1);
+        bctx.stroke();
+        
+        bctx.restore();
+      }
+
+      function drawFogPowerup(bctx, x, y, size, animationTick) {
+        bctx.save();
+        const floatY = Math.sin(animationTick * 0.08 + 2) * 5;
+        bctx.translate(x, y + floatY);
+        
+        // Gas canister cylinder
+        bctx.fillStyle = '#a855f7'; // pulsing purple gas bottle
+        bctx.fillRect(10, 7, size - 20, size - 13);
+        
+        bctx.fillStyle = '#c084fc'; // metal reflection
+        bctx.fillRect(10, 7, 3, size - 13);
+        
+        bctx.fillStyle = '#3b0764'; // nozzles valve
+        bctx.fillRect(14, 3, size - 28, 4);
+        
+        // Generate gorgeous neon purple smoke vapor pixels
+        bctx.fillStyle = 'rgba(168, 85, 247, 0.7)';
+        const cycle = animationTick % 18;
+        if (cycle < 6) {
+          bctx.fillRect(4, 12 + Math.sin(cycle) * 2, 4, 4);
+          bctx.fillRect(size - 8, 17, 3, 3);
+        } else if (cycle < 12) {
+          bctx.fillRect(1, 15, 5, 5);
+          bctx.fillRect(size - 6, 9 + Math.cos(cycle) * 2, 4, 4);
+        } else {
+          bctx.fillRect(6, 21, 3, 3);
+          bctx.fillRect(size - 4, 13, 5, 5);
+        }
+        
+        bctx.restore();
+      }
+
+      // Play step rhythm sound synchronized with vertical speed
+      let stepSoundTimer = 0;
+
+      // -------------------------------------------------------------
+      // CORE RENDERING PASS & PHYSICS UPDATES
+      // -------------------------------------------------------------
+      function updatePhysicsAndScroll() {
+        if (!gameState.running) return;
+
+        gameState.ticks++;
+        
+        // Smoothly accelerate the game after starting slow!
+        // Starts completely steady at 1.0 multiplier for the first 120 steps.
+        // After 120 steps, it increments by 0.0028 for each additional step climbed, speeding up little by little.
+        if (gameState.score < 120) {
+          gameState.speedMultiplier = 1.0;
+        } else {
+          gameState.speedMultiplier = 1.0 + (gameState.score - 120) * 0.0028;
+        }
+        if (gameState.speedMultiplier > 4.5) {
+          gameState.speedMultiplier = 4.5;
+        }
+
+        let baseRate = gameState.speedBase;
+        // Fog active slows speed by 50%
+        if (gameState.bato.fogActive) {
+          baseRate *= 0.5;
+        }
+
+        gameState.currentSpeed = baseRate * gameState.speedMultiplier;
+
+        // Propel vertical camera upward
+        gameState.scrollY += gameState.currentSpeed;
+        gameState.score = Math.floor(gameState.scrollY / 10);
+
+        // Win conditions check! Reached 10,000 steps
+        if (gameState.score >= 10000) {
+          winGame();
+          return;
+        }
+
+        // Steer Bato velocity
+        const speedX = 6.5;
+        let controlIntent = 0;
+        
+        if (keysPressed['a'] || keysPressed['arrowleft'] || touchLeftPressed) {
+          controlIntent = -1;
+        }
+        if (keysPressed['d'] || keysPressed['arrowright'] || touchRightPressed) {
+          controlIntent = 1;
+        }
+
+        // Friction, inertia movement physics
+        const accel = 0.8;
+        const drag = 0.85;
+        gameState.bato.vx += controlIntent * accel;
+        gameState.bato.vx *= drag;
+        gameState.bato.x += gameState.bato.vx;
+
+        // Sound beat generation pacing based on vertical speed
+        stepSoundTimer += gameState.currentSpeed;
+        if (stepSoundTimer >= 80) {
+          stepSoundTimer = 0;
+          // Step sound
+          SFX.playStep(70 + Math.sin(gameState.ticks * 0.05) * 10);
+        }
+
+        // -------------------------------------------------------------
+        // PROCEDURAL ENDLESS CURVING SNAKING WALL BOUND DEFINITIONS
+        // -------------------------------------------------------------
+        const playerY = gameState.bato.y;
+        const playerAbsoluteY = playerY + gameState.scrollY;
+        
+        // The staircase center waves left and right as Bato climbs
+        const playerStairCenterX = CANVAS_WIDTH / 2 + Math.sin(playerAbsoluteY * 0.005) * 90;
+        
+        // Landscape stair width transition - starts at score 200, fully landscape at 1000 steps
+        const landscapeProgress = Math.min(1.0, Math.max(0.0, (gameState.score - 200) / 800));
+        const stairWidth = 260 + landscapeProgress * 180; // Widen seamlessly from 260 to 440
+        
+        // Keep Bato bounded between the masonry wall railings
+        const boundaryMargin = 12; // size inset
+        const leftColBound = playerStairCenterX - stairWidth / 2 + boundaryMargin;
+        const rightColBound = playerStairCenterX + stairWidth / 2 - boundaryMargin - gameState.bato.width;
+
+        if (gameState.bato.x < leftColBound) {
+          gameState.bato.x = leftColBound;
+          gameState.bato.vx = 0;
+          // spawn small spark particles on hit wall left
+          if (gameState.ticks % 4 === 0) {
+            spawnScrapeParticles(leftColBound, playerY + 50, '#facc15');
+          }
+        }
+        if (gameState.bato.x > rightColBound) {
+          gameState.bato.x = rightColBound;
+          gameState.bato.vx = 0;
+          // sparks right
+          if (gameState.ticks % 4 === 0) {
+            spawnScrapeParticles(rightColBound + gameState.bato.width, playerY + 50, '#facc15');
+          }
+        }
+
+        // -------------------------------------------------------------
+        // SPARK EXTRA PARTICLES
+        // -------------------------------------------------------------
+        gameState.particles.forEach((p, idx) => {
+          p.x += p.vx;
+          p.y += p.vy - gameState.currentSpeed; // absolute scrolling decay
+          p.life--;
+          if (p.life <= 0) {
+            gameState.particles.splice(idx, 1);
+          }
+        });
+
+        // -------------------------------------------------------------
+        // DECREMENT HERO POWERUP TIMERS
+        // -------------------------------------------------------------
+        if (gameState.bato.shielded) {
+          gameState.bato.shieldTimer--;
+          if (gameState.bato.shieldTimer <= 0) {
+            gameState.bato.shielded = false;
+          }
+        }
+
+        if (gameState.bato.invisible) {
+          gameState.bato.invisibleTimer--;
+          if (gameState.bato.invisibleTimer <= 0) {
+            gameState.bato.invisible = false;
+          }
+        }
+
+        if (gameState.bato.fogActive) {
+          gameState.bato.fogTimer--;
+          if (gameState.bato.fogTimer <= 0) {
+            gameState.bato.fogActive = false;
+          }
+        }
+
+        // -------------------------------------------------------------
+        // SPAWN CORRIDOR OBJECTS
+        // -------------------------------------------------------------
+        gameState.spawnTimer += gameState.currentSpeed;
+        
+        // Spawn interval gets faster with speed multiplier
+        let baseSpawnInterval = 140 / (gameState.speedMultiplier * 0.95);
+        if (gameState.bato.fogActive) {
+          baseSpawnInterval *= 1.8; // slows down obstacle flow rate heavily!
+        }
+
+        if (gameState.spawnTimer >= baseSpawnInterval) {
+          gameState.spawnTimer = 0;
+          spawnStreetObstacle();
+        }
+
+        // -------------------------------------------------------------
+        // UPDATE OBJECTS & ARREST COLLISIONS
+        // -------------------------------------------------------------
+        // Obstacles iteration
+        gameState.obstacles.forEach((obj, idx) => {
+          // Obstacles descend downwards with visual offsets
+          obj.offsetY += gameState.currentSpeed + obj.extraDownSpeed;
+          
+          // Constrain coordinate to scroll curve
+          const objAbsY = obj.offsetY + gameState.scrollY;
+          const stairCenter = CANVAS_WIDTH / 2 + Math.sin(objAbsY * 0.005) * 90;
+          
+          // Landscape lane widening matching local staircase width
+          const objScore = Math.floor(objAbsY / 10);
+          const objLandscapeProgress = Math.min(1.0, Math.max(0.0, (objScore - 200) / 800));
+          const objLaneSpacing = 75 + objLandscapeProgress * 45; // Expands from 75 to 120
+          
+          obj.x = stairCenter + obj.lane * objLaneSpacing - obj.width / 2;
+          obj.y = obj.offsetY;
+
+          // Rotation increment for gavel
+          if (obj.type === 'gavel') {
+            obj.angle += 0.12;
+          }
+
+          // Off-screen scavenger
+          if (obj.y > CANVAS_HEIGHT + 100) {
+            gameState.obstacles.splice(idx, 1);
+            return;
+          }
+
+          // Hitbox rectangle overlap calculations with Bato
+          if (checkCollision(gameState.bato, obj)) {
+            // Check active powerups
+            if (gameState.bato.invisible) {
+              // Harmlessly pass through
+              return;
+            }
+
+            if (gameState.bato.shielded) {
+              // Shatter golden shield, give brief invul
+              gameState.bato.shielded = false;
+              gameState.bato.shieldTimer = 0;
+              SFX.playShieldBreak();
+              
+              // Spawn awesome golden explosion particles
+              for (let i = 0; i < 24; i++) {
+                gameState.particles.push({
+                  x: gameState.bato.x + gameState.bato.width/2,
+                  y: gameState.bato.y + gameState.bato.height/2,
+                  vx: (Math.random() * 2 - 1) * 6,
+                  vy: (Math.random() * 2 - 1) * 6,
+                  life: 20 + Math.random() * 20,
+                  color: '#fbbf24',
+                  radius: 3 + Math.random() * 3
+                });
+              }
+              
+              // Remove the specific obstacle that hit him
+              gameState.obstacles.splice(idx, 1);
+              
+              // Temporary invulnerability frames
+              gameState.bato.invisible = true;
+              gameState.bato.invisibleTimer = 50; 
+              return;
+            }
+
+            // Arrest Bato! Standard arrest execution
+            triggerArrest();
+          }
+        });
+
+        // Power-ups iteration
+        gameState.powerups.forEach((pw, idx) => {
+          pw.offsetY += gameState.currentSpeed;
+          
+          const pwAbsY = pw.offsetY + gameState.scrollY;
+          const stairCenter = CANVAS_WIDTH / 2 + Math.sin(pwAbsY * 0.005) * 90;
+          
+          // Landscape lane widening matching local staircase width
+          const pwScore = Math.floor(pwAbsY / 10);
+          const pwLandscapeProgress = Math.min(1.0, Math.max(0.0, (pwScore - 200) / 800));
+          const pwLaneSpacing = 75 + pwLandscapeProgress * 45; // Expands from 75 to 120
+          
+          pw.x = stairCenter + pw.lane * pwLaneSpacing - pw.width / 2;
+          pw.y = pw.offsetY;
+
+          // Out of screen bounds cleanup
+          if (pw.y > CANVAS_HEIGHT + 100) {
+            gameState.powerups.splice(idx, 1);
+            return;
+          }
+
+          if (checkCollision(gameState.bato, pw)) {
+            // Apply effect!
+            SFX.playCollect();
+            activatePowerup(pw.type);
+            
+            // Spawn splash capture sparkles
+            const colors = { 'shield': '#fbbf24', 'camera': '#ef4444', 'fog': '#c084fc' };
+            for (let i = 0; i < 15; i++) {
+              gameState.particles.push({
+                x: pw.x + pw.width/2,
+                y: pw.y + pw.height/2,
+                vx: (Math.random() * 2 - 1) * 4,
+                vy: (Math.random() * 2 - 1) * 4 - 2, // upwards draft
+                life: 15 + Math.random() * 15,
+                color: colors[pw.type] || '#ffffff',
+                radius: 2 + Math.random() * 3
+              });
+            }
+
+            gameState.powerups.splice(idx, 1);
+          }
+        });
+
+        // Siren bulb alternate flashing state logic
+        gameState.sirenTick++;
+        if (gameState.sirenTick % 30 === 0) {
+          // Play ominous siren sound if getting extremely fast!
+          if (gameState.speedMultiplier > 1.3 && Math.random() < 0.3) {
+            SFX.playSiren();
+          }
+          toggleSirenBeacons();
+        }
+
+        // Dynamically update HUD details
+        document.getElementById('hud-speed').innerText = `${gameState.speedMultiplier.toFixed(2)}x ESCAPE SPEED`;
+        
+        // Update HUD Status based on active powerups and height climbing milestones
+        const hudStatusElDynamic = document.getElementById('hud-status');
+        if (hudStatusElDynamic) {
+          if (gameState.bato.shielded) {
+            hudStatusElDynamic.innerText = "SHIELDED (POLITICAL ALLY)";
+            hudStatusElDynamic.className = "text-[#ffd700] font-bold";
+          } else if (gameState.bato.invisible) {
+            hudStatusElDynamic.innerText = "INVISIBLE (MEDIA BLIND SPOT)";
+            hudStatusElDynamic.className = "text-[#00ffff] font-bold";
+          } else if (gameState.bato.fogActive) {
+            hudStatusElDynamic.innerText = "SLOWED TIME (FOG OF WAR)";
+            hudStatusElDynamic.className = "text-pink-500 font-bold";
+          } else {
+            if (gameState.score < 200) {
+              hudStatusElDynamic.innerText = "STAIRWELL INFILTRATION";
+              hudStatusElDynamic.className = "text-[#ff0033] font-bold";
+            } else if (gameState.score < 1000) {
+              hudStatusElDynamic.innerText = "OUTDOOR ESCAPE BRIDGE";
+              hudStatusElDynamic.className = "text-[#ffd700] font-bold animate-pulse";
+            } else {
+              hudStatusElDynamic.innerText = "HIGH-ALTITUDE SKYWAY";
+              hudStatusElDynamic.className = "text-[#00ffff] font-bold animate-pulse";
+            }
+          }
+        }
+      }
+
+      function spawnScrapeParticles(x, y, color) {
+        // Simple sparks
+        gameState.particles.push({
+          x: x,
+          y: y,
+          vx: (Math.random() * 2 - 1) * 2,
+          vy: (Math.random() * -3) - 1, // sprays upwards slightly
+          life: 8 + Math.random() * 8,
+          color: color,
+          radius: 1 + Math.random() * 2
+        });
+      }
+
+      function toggleSirenBeacons() {
+        const alt = (Math.floor(gameState.sirenTick / 30) % 2 === 0);
+        if (alt) {
+          sirenLeft.style.backgroundColor = '#ef4444';
+          sirenLeft.style.boxShadow = '0 0 16px rgba(239, 68, 68, 1)';
+          sirenRight.style.backgroundColor = '#450a0a';
+          sirenRight.style.boxShadow = 'none';
+        } else {
+          sirenLeft.style.backgroundColor = '#450a0a';
+          sirenLeft.style.boxShadow = 'none';
+          sirenRight.style.backgroundColor = '#ef4444';
+          sirenRight.style.boxShadow = '0 0 16px rgba(239, 68, 68, 1)';
+        }
+      }
+
+      function spawnStreetObstacle() {
+        // Lane coordinates: Left (-1), Middle (0), Right (1)
+        const lane = Math.floor(Math.random() * 3) - 1;
+        
+        // Spawn probability distribution
+        const rand = Math.random();
+        
+        if (rand < 0.78) {
+          // Spawn Obstacle
+          const obstacleTypes = ['marshal', 'agent', 'gavel', 'warrant'];
+          const type = obstacleTypes[Math.floor(Math.random() * obstacleTypes.length)];
+          
+          let w = 48, h = 64;
+          let extraSpeed = 0;
+          if (type === 'gavel') { w = 32; h = 32; extraSpeed = 2.0; } // Gavel spinning speed falling
+          if (type === 'warrant') { w = 36; h = 42; extraSpeed = 0.5; }
+          if (type === 'agent') { extraSpeed = 1.0; } // NBI agents run faster Down!
+
+          gameState.obstacles.push({
+            type: type,
+            lane: lane,
+            offsetY: -80, // off screen top
+            x: 0, y: 0, // dynamic
+            width: w,
+            height: h,
+            extraDownSpeed: extraSpeed,
+            angle: 0 // Gavel rotation
+          });
+        } else {
+          // Spawn Powerup
+          const powerupsList = ['shield', 'camera', 'fog'];
+          const type = powerupsList[Math.floor(Math.random() * powerupsList.length)];
+          
+          gameState.powerups.push({
+            type: type,
+            lane: lane,
+            offsetY: -70,
+            x: 0, y: 0,
+            width: 32,
+            height: 32
+          });
+        }
+      }
+
+      function checkCollision(rect1, rect2) {
+        // Shrink the collision hitboxes slightly to make retro arcade navigation responsive & fair
+        const paddingX = 8;
+        const paddingY = 8;
+        return (
+          rect1.x + paddingX < rect2.x + rect2.width - paddingX &&
+          rect1.x + rect1.width - paddingX > rect2.x + paddingX &&
+          rect1.y + paddingY < rect2.y + rect2.height - paddingY &&
+          rect1.y + rect1.height - paddingY > rect2.y + paddingY
+        );
+      }
+
+      function activatePowerup(type) {
+        if (type === 'shield') {
+          gameState.bato.shielded = true;
+          gameState.bato.shieldTimer = 480; // ~8 seconds
+          hudStatusEl.innerText = "SHIELDED (POLITICAL ALLY)";
+          hudStatusEl.className = "text-[#ffd700] font-bold";
+        } else if (type === 'camera') {
+          gameState.bato.invisible = true;
+          gameState.bato.invisibleTimer = 360; // ~6 seconds
+          hudStatusEl.innerText = "INVISIBLE (MEDIA BLIND SPOT)";
+          hudStatusEl.className = "text-[#00ffff] font-bold";
+        } else if (type === 'fog') {
+          gameState.bato.fogActive = true;
+          gameState.bato.fogTimer = 420; // ~7 seconds
+          hudStatusEl.innerText = "SLOWED TIME (FOG OF WAR)";
+          hudStatusEl.className = "text-pink-500 font-bold";
+        }
+      }
+
+      function triggerArrest() {
+        gameState.running = false;
+        SFX.playGameOver();
+        saveHighScore(gameState.score);
+        highscoreLabel.innerText = `HIGH ESCAPE SCORE: ${getHighScore()} STEPS`;
+
+        // Update layouts
+        document.getElementById('hud-status').innerText = "WARRANT SERVED IN THE STAIRWELL";
+        document.getElementById('hud-status').className = "text-[#ff0033] font-black";
+
+        // Show game over visual overlays
+        overlayScreen.classList.remove('hidden');
+        introBlock.classList.add('hidden');
+        winBlock.classList.add('hidden');
+        
+        const goBlock = document.getElementById('gameover-block');
+        goBlock.classList.remove('hidden');
+        document.getElementById('gameover-stats').innerHTML = `
+          STEPS ESCAPED: <span class="text-white font-bold">${gameState.score}</span> / <span class="text-red-400">10,000</span><br/>
+          HIGH SCORE: <span class="text-[#ffd700] font-bold">${getHighScore()} STEPS</span>
+        `;
+        startBtn.innerText = "RUN AGAIN";
+      }
+
+      function winGame() {
+        gameState.running = false;
+        saveHighScore(gameState.score);
+        highscoreLabel.innerText = `HIGH ESCAPE SCORE: ${getHighScore()} STEPS`;
+
+        document.getElementById('hud-status').innerText = "ESCAPED AT COGNIZANCE";
+        document.getElementById('hud-status').className = "text-[#ffd700] font-black animate-pulse";
+
+        overlayScreen.classList.remove('hidden');
+        introBlock.classList.add('hidden');
+        gameoverBlock.classList.add('hidden');
+        
+        const wBlock = document.getElementById('win-block');
+        wBlock.classList.remove('hidden');
+        document.getElementById('win-stats').innerHTML = `
+          FINAL ESCAPED CLIMB: <span class="text-white font-bold">${gameState.score} STEPS!</span><br/>
+          HIGH SCORE: <span class="text-[#ffd700] font-bold">${getHighScore()} STEPS</span>
+        `;
+        startBtn.innerText = "RUN AGAIN";
+      }
+
+      // -------------------------------------------------------------
+      // GRAPHICS RENDERING LOOP
+      // -------------------------------------------------------------
+      function drawScene() {
+        // Clear canvas context
+        ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+        const globalLandscapeProgress = Math.min(1.0, Math.max(0.0, (gameState.score - 200) / 800));
+
+        // Always draw the gorgeous parallax sky vista behind everything
+        // 1. Sky Gradient background (from deep space twilight to warm purple sunset glow)
+        const skyGrad = ctx.createLinearGradient(0, 0, 0, CANVAS_HEIGHT);
+        skyGrad.addColorStop(0, '#02020a'); // Cosmic top
+        skyGrad.addColorStop(0.4, '#070817'); // Mid altitude
+        skyGrad.addColorStop(1, '#180721'); // Sunset glow
+        ctx.fillStyle = skyGrad;
+        ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+        // 2. Twin spotlight beams sweeping back and forth over the sky
+        // Left sweep beam (cyan)
+        ctx.save();
+        const lightX1 = CANVAS_WIDTH * 0.25;
+        const lightY1 = CANVAS_HEIGHT;
+        const angle1 = -Math.PI/2 + Math.sin(gameState.ticks * 0.007) * 0.6;
+        ctx.translate(lightX1, lightY1);
+        ctx.rotate(angle1);
+        const grad1 = ctx.createLinearGradient(0, 0, 0, -420);
+        grad1.addColorStop(0, 'rgba(0, 240, 255, 0.12)');
+        grad1.addColorStop(1, 'rgba(0, 240, 255, 0)');
+        ctx.fillStyle = grad1;
+        ctx.beginPath();
+        ctx.moveTo(-15, 0);
+        ctx.lineTo(-45, -420);
+        ctx.lineTo(45, -420);
+        ctx.lineTo(15, 0);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+
+        // Right sweep beam (pink)
+        ctx.save();
+        const lightX2 = CANVAS_WIDTH * 0.75;
+        const lightY2 = CANVAS_HEIGHT;
+        const angle2 = -Math.PI/2 + Math.cos(gameState.ticks * 0.009) * 0.55;
+        ctx.translate(lightX2, lightY2);
+        ctx.rotate(angle2);
+        const grad2 = ctx.createLinearGradient(0, 0, 0, -420);
+        grad2.addColorStop(0, 'rgba(255, 0, 80, 0.11)');
+        grad2.addColorStop(1, 'rgba(255, 0, 80, 0)');
+        ctx.fillStyle = grad2;
+        ctx.beginPath();
+        ctx.moveTo(-15, 0);
+        ctx.lineTo(-45, -420);
+        ctx.lineTo(45, -420);
+        ctx.lineTo(15, 0);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+
+        // 3. Twinkling and descending dynamic stars (Vertical parallax)
+        for (let i = 0; i < 35; i++) {
+          const starX = (Math.sin(i * 1234.5) * 0.5 + 0.5) * CANVAS_WIDTH;
+          const starYOffset = (Math.cos(i * 5432.1) * 0.5 + 0.5) * CANVAS_HEIGHT;
+          const starY = (starYOffset + gameState.scrollY * 0.05) % CANVAS_HEIGHT;
+          const isSizeAlt = (Math.sin(i * 999 + gameState.ticks * 0.06) > 0.4);
+          const starOpacity = 0.2 + 0.8 * Math.abs(Math.sin(i * 777 + gameState.ticks * 0.08));
+          
+          ctx.fillStyle = `rgba(255, 255, 255, ${starOpacity})`;
+          ctx.fillRect(starX, starY, isSizeAlt ? 2 : 1, isSizeAlt ? 2 : 1);
+        }
+
+        // 4. Parallax Horizontal Clouds drift
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
+        for (let i = 0; i < 3; i++) {
+          const cloudSpeed = 0.3 + i * 0.2;
+          const cloudX = (i * 240 + gameState.ticks * cloudSpeed) % (CANVAS_WIDTH + 140) - 100;
+          const cloudY = 90 + i * 70;
+          ctx.fillRect(cloudX, cloudY, 80, 18);
+          ctx.fillRect(cloudX + 15, cloudY - 7, 50, 7);
+          ctx.fillRect(cloudX + 30, cloudY + 18, 30, 4);
+        }
+
+        // 4.5. 64-Bit hardware accelerated neon wireframe horizon grid (classic N64 / arcade style)
+        ctx.strokeStyle = 'rgba(236, 72, 153, 0.15)'; 
+        ctx.lineWidth = 1;
+        const gridYStart = CANVAS_HEIGHT * 0.65;
+        // Horizontal converging lines
+        for (let gy = gridYStart; gy < CANVAS_HEIGHT; gy += 15) {
+          const ratio = (gy - gridYStart) / (CANVAS_HEIGHT - gridYStart);
+          const opacity = ratio * 0.22;
+          ctx.strokeStyle = `rgba(168, 85, 247, ${opacity})`; // purple fade
+          ctx.beginPath();
+          ctx.moveTo(0, gy);
+          ctx.lineTo(CANVAS_WIDTH, gy);
+          ctx.stroke();
+        }
+        // Vertical perspective perspective matrix lines
+        const vanishingPointX = CANVAS_WIDTH / 2;
+        const vanishingPointY = gridYStart;
+        for (let gx = -100; gx <= CANVAS_WIDTH + 100; gx += 40) {
+          ctx.strokeStyle = 'rgba(6, 182, 212, 0.06)'; // cyan vanishing lines
+          ctx.beginPath();
+          ctx.moveTo(vanishingPointX, vanishingPointY);
+          ctx.lineTo(gx, CANVAS_HEIGHT);
+          ctx.stroke();
+        }
+
+        // 5. Far City Skyline silhouettes (Deep Navy/Indigo)
+        ctx.fillStyle = '#080812';
+        for (let i = 0; i < 16; i++) {
+          const bW = 60;
+          const bX = (i * bW - gameState.scrollY * 0.1) % (CANVAS_WIDTH + bW);
+          const bH = 80 + Math.abs(Math.sin(i * 99.5)) * 140;
+          ctx.fillRect(bX - 40, CANVAS_HEIGHT - bH, bW - 4, bH);
+        }
+
+        // 6. Near City Skyline silhouettes with lit-up yellow/cyan windows
+        for (let i = 0; i < 18; i++) {
+          const bW = 40;
+          const bX = (i * 48 - gameState.scrollY * 0.18) % (CANVAS_WIDTH + bW);
+          const bH = 50 + Math.abs(Math.sin(i * 73.2)) * 110;
+          const finalX = bX - 30;
+          const finalY = CANVAS_HEIGHT - bH;
+          
+          // Draw Building Block
+          ctx.fillStyle = '#0b0f19';
+          ctx.fillRect(finalX, finalY, bW - 2, bH);
+          
+          // Lit illuminated windows
+          ctx.fillStyle = (i % 2 === 0) ? '#ffd700' : '#00ffff'; // Glistening gold & cyber blue lights
+          const wRows = Math.floor(bH / 15);
+          const wCols = 2;
+          for (let r = 0; r < wRows - 1; r++) {
+            for (let c = 0; c < wCols; c++) {
+              if (Math.sin(i * 5 + r * 3 + c * 7 + gameState.ticks * 0.012) > -0.1) {
+                ctx.fillRect(finalX + 8 + c * 16, finalY + 12 + r * 14, 3, 4);
+              }
+            }
+          }
+        }
+
+        // draw procedural endless curved stairway winding
+        const stepHeight = 22;
+        const startY = -stepHeight + (gameState.scrollY % stepHeight);
+        
+        for (let y = startY; y < CANVAS_HEIGHT + stepHeight; y += stepHeight) {
+          const absoluteY = y + gameState.scrollY;
+          
+          // Curve coordinate equation
+          const centerX = CANVAS_WIDTH / 2 + Math.sin(absoluteY * 0.005) * 90;
+          
+          // Compute landscape opening progress step-by-step for gorgeous smooth tapering funnel transition
+          const stepScore = Math.floor(absoluteY / 10);
+          const stepLandscapeProgress = Math.min(1.0, Math.max(0.0, (stepScore - 200) / 800));
+          const stairWidth = 260 + stepLandscapeProgress * 180; // Widen seamlessly from 260 to 440
+          
+          const leftWall = centerX - stairWidth / 2;
+          const rightWall = centerX + stairWidth / 2;
+
+          // 1. Draw Left Stone Masonry Wall (Slides elegantly off-screen left)
+          if (stepLandscapeProgress < 1.0) {
+            ctx.fillStyle = '#0f172a'; // slate-900 wall deep fill
+            const visibleWallLeft = leftWall * (1 - stepLandscapeProgress);
+            ctx.fillRect(0, y, visibleWallLeft, stepHeight);
+            
+            // Mortar joints shadow divider
+            ctx.fillStyle = '#020617';
+            ctx.fillRect(visibleWallLeft - 4, y, 4, stepHeight);
+            
+            // Draw random pixelated texture bricks on Left wall
+            ctx.fillStyle = '#1e293b';
+            if (Math.floor(absoluteY / stepHeight) % 3 === 0) {
+              ctx.fillRect(visibleWallLeft - 60, y + 4, 20, 4);
+              ctx.fillRect(visibleWallLeft - 110, y + 14, 15, 3);
+            } else if (Math.floor(absoluteY / stepHeight) % 3 === 1) {
+              ctx.fillRect(visibleWallLeft - 30, y + 8, 15, 4);
+            }
+          }
+
+          // 2. Draw Right Stone Wall (Slides elegantly off-screen right)
+          if (stepLandscapeProgress < 1.0) {
+            const wallStartRight = rightWall + (CANVAS_WIDTH - rightWall) * stepLandscapeProgress;
+            const visibleWallRightWidth = CANVAS_WIDTH - wallStartRight;
+            
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(wallStartRight, y, visibleWallRightWidth, stepHeight);
+            
+            ctx.fillStyle = '#020617';
+            ctx.fillRect(wallStartRight, y, 4, stepHeight); // right edge mortar line
+
+            // Right wall bricks
+            ctx.fillStyle = '#1e293b';
+            if (Math.floor(absoluteY / stepHeight) % 3 === 0) {
+              ctx.fillRect(wallStartRight + 30, y + 12, 25, 4);
+            } else if (Math.floor(absoluteY / stepHeight) % 3 === 2) {
+              ctx.fillRect(wallStartRight + 15, y + 5, 20, 4);
+            }
+          }
+
+          // 3. Draw Stair Steps Treads Surfaces
+          const stepIndex = Math.floor(absoluteY / stepHeight);
+          // Alternate staircase shade bands for retro visual depth
+          ctx.fillStyle = (stepIndex % 2 === 0) ? '#1e293b' : '#111827';
+          ctx.fillRect(leftWall, y, stairWidth, stepHeight);
+          
+          // Bevel highlighted stone step front edge
+          ctx.fillStyle = '#334155';
+          ctx.fillRect(leftWall, y, stairWidth, 2);
+
+          // Dark stairs safety grooves on steps
+          if (stepIndex % 3 === 0) {
+            ctx.fillStyle = '#b45309'; // Warning yellow amber safety lines
+            ctx.fillRect(leftWall + 24, y + 1, stairWidth - 48, 1);
+          }
+
+          // 4. Draw Royal Baluster Bannister Post Railings on both borders
+          // Bannister on LEFT boundary
+          ctx.fillStyle = '#ca8a04'; // gold metal railings
+          ctx.fillRect(leftWall + 8, y, 4, stepHeight); // post
+          ctx.fillStyle = '#eab308';
+          ctx.fillRect(leftWall + 6, y, 8, 3); // cap joints
+          
+          // Bannister on RIGHT boundary
+          ctx.fillStyle = '#ca8a04';
+          ctx.fillRect(rightWall - 12, y, 4, stepHeight);
+          ctx.fillStyle = '#eab308';
+          ctx.fillRect(rightWall - 14, y, 8, 3);
+
+          // 5. Draw Periodic Neon Alarm Sirens mounted on walls
+          if (stepIndex % 8 === 0) {
+            if (stepLandscapeProgress < 0.9) {
+              const isFlashed = (gameState.sirenTick % 40 < 20);
+              const visibleWallLeft = leftWall * (1 - stepLandscapeProgress);
+              const wallStartRight = rightWall + (CANVAS_WIDTH - rightWall) * stepLandscapeProgress;
+              
+              // Left alarm light mount
+              ctx.fillStyle = '#64748b'; // support grey bracket
+              ctx.fillRect(visibleWallLeft - 14, y + 6, 10, 8);
+              
+              // Bulb
+              if (isFlashed) {
+                ctx.fillStyle = '#f43f5e'; // glowing hot warning pink red
+                ctx.fillRect(visibleWallLeft - 12, y + 3, 6, 6);
+                
+                // Canvas Radial Glow flare simulation!
+                ctx.fillStyle = 'rgba(239, 68, 68, 0.16)';
+                ctx.beginPath();
+                ctx.arc(visibleWallLeft - 9, y + 6, 32, 0, 2 * Math.PI);
+                ctx.fill();
+              } else {
+                ctx.fillStyle = '#581c1c'; // dark crimson off-bulb
+                ctx.fillRect(visibleWallLeft - 12, y + 3, 6, 6);
+              }
+
+              // Right alarm light mount
+              ctx.fillStyle = '#64748b';
+              ctx.fillRect(wallStartRight + 4, y + 6, 10, 8);
+              
+              if (!isFlashed) {
+                ctx.fillStyle = '#f43f5e';
+                ctx.fillRect(wallStartRight + 6, y + 3, 6, 6);
+                
+                ctx.fillStyle = 'rgba(239, 68, 68, 0.16)';
+                ctx.beginPath();
+                ctx.arc(wallStartRight + 9, y + 6, 32, 0, 2 * Math.PI);
+                ctx.fill();
+              } else {
+                ctx.fillStyle = '#581c1c';
+                ctx.fillRect(wallStartRight + 6, y + 3, 6, 6);
+              }
+            }
+          }
+        }
+
+        // Draw active powerups on top of steps
+        gameState.powerups.forEach((pw) => {
+          if (pw.type === 'shield') {
+            drawShieldPowerup(ctx, pw.x, pw.y, pw.width, gameState.ticks);
+          } else if (pw.type === 'camera') {
+            drawCameraPowerup(ctx, pw.x, pw.y, pw.width, gameState.ticks);
+          } else if (pw.type === 'fog') {
+            drawFogPowerup(ctx, pw.x, pw.y, pw.width, gameState.ticks);
+          }
+        });
+
+        // Draw descending Obstacles (Marshals / agents / etc)
+        gameState.obstacles.forEach((obj) => {
+          if (obj.type === 'marshal') {
+            drawICCMarshal(ctx, obj.x, obj.y, obj.width, obj.height, gameState.ticks);
+          } else if (obj.type === 'agent') {
+            drawNBIAgent(ctx, obj.x, obj.y, obj.width, obj.height, gameState.ticks);
+          } else if (obj.type === 'gavel') {
+            drawSpinningGavel(ctx, obj.x, obj.y, obj.width, obj.angle);
+          } else if (obj.type === 'warrant') {
+            drawWarrantPaper(ctx, obj.x, obj.y, obj.width, obj.height, gameState.ticks);
+          }
+        });
+
+        // Draw trailing particles list
+        gameState.particles.forEach((p) => {
+          ctx.fillStyle = p.color;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.radius, 0, 2 * Math.PI);
+          ctx.fill();
+        });
+
+        // Draw Player: Senator Bato dela Rosa
+        drawBatoSprite(ctx, gameState.bato.x, gameState.bato.y, gameState.bato, gameState.ticks);
+
+        // Render elegant Arcade 64-bit HUD overlays directly on canvas margins
+        ctx.save();
+        
+        // HUD Backdrop Strip (semi translucent black header at top)
+        ctx.fillStyle = 'rgba(2, 6, 23, 0.85)';
+        ctx.fillRect(0, 0, CANVAS_WIDTH, 42);
+        ctx.strokeStyle = '#312e81';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(0, 42);
+        ctx.lineTo(CANVAS_WIDTH, 42);
+        ctx.stroke();
+
+        // 1. Render Current Score (Steps)
+        ctx.fillStyle = '#34d399'; // Mint green
+        ctx.font = '8px "Press Start 2P"';
+        ctx.textAlign = 'left';
+        ctx.fillText(`STEPS: ${gameState.score}`, 16, 24);
+
+        // 2. Render Destination goal bar (Distance indicator)
+        const percent = Math.min(1.0, gameState.score / 10000);
+        ctx.fillStyle = '#1e1b4b'; // rail border
+        ctx.fillRect(180, 16, 280, 10);
+        ctx.fillStyle = '#4f46e5'; // active filled indicator
+        ctx.fillRect(180, 16, 280 * percent, 10);
+        ctx.strokeStyle = '#6366f1';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(180, 16, 280, 10);
+        
+        // Text inside bar
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '7px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(`ESCAPE HELIPAD BOUNDS: ${Math.floor(percent * 100)}%`, 320, 24);
+
+        // 3. Sped multipliers
+        ctx.fillStyle = '#fbbf24';
+        ctx.font = '8px "Press Start 2P"';
+        ctx.textAlign = 'right';
+        ctx.fillText(`${gameState.speedMultiplier.toFixed(2)}x`, CANVAS_WIDTH - 16, 24);
+
+        // -------------------------------------------------------------
+        // ACTIVE POWERUP STATS INDICATORS (Drawn at bottom left / center)
+        // -------------------------------------------------------------
+        let drawBarY = 56;
+        if (gameState.bato.shielded) {
+          drawHUDPowerupBar("SHIELD", gameState.bato.shieldTimer, 480, '#fbbf24', drawBarY);
+          drawBarY += 15;
+        }
+        if (gameState.bato.invisible) {
+          drawHUDPowerupBar("GHOST", gameState.bato.invisibleTimer, 360, '#10b981', drawBarY);
+          drawBarY += 15;
+        }
+        if (gameState.bato.fogActive) {
+          drawHUDPowerupBar("FOG", gameState.bato.fogTimer, 420, '#a855f7', drawBarY);
+        }
+
+        ctx.restore();
+      }
+
+      function drawHUDPowerupBar(label, current, max, color, yPos) {
+        ctx.save();
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(16, yPos, 140, 10);
+        
+        const ratio = Math.max(0, Math.min(1.0, current / max));
+        ctx.fillStyle = color;
+        ctx.fillRect(16, yPos, 140 * ratio, 10);
+        
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(16, yPos, 140, 10);
+        
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 7px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(`${label}: ${Math.ceil(current/60)}s`, 22, yPos + 8);
+        ctx.restore();
+      }
+
+      // -------------------------------------------------------------
+      // ENGINE GAME LOOP
+      // -------------------------------------------------------------
+      function gameLoop() {
+        updatePhysicsAndScroll();
+        drawScene();
+        requestAnimationFrame(gameLoop);
+      }
+
+      // Start looping instantly to render frozen/unstarted initial staircase scrolling ambiance!
+      requestAnimationFrame(gameLoop);
+
+      // -------------------------------------------------------------
+      // START / RESTART BUTTON LOGIC CONTROLS
+      // -------------------------------------------------------------
+      startBtn.addEventListener('click', () => {
+        setupAndStartGame();
+      });
+
+      function setupAndStartGame() {
+        // Unlock sound
+        SFX.init();
+        SFX.playTone(440, 'sine', 0.2, 0.15);
+        setTimeout(() => {
+          SFX.playTone(660, 'sine', 0.25, 0.15);
+        }, 120);
+
+        // Reset state data
+        gameState.ticks = 0;
+        gameState.scrollY = 0;
+        gameState.score = 0;
+        gameState.spawnTimer = 0;
+        gameState.speedMultiplier = 1.0;
+        gameState.currentSpeed = gameState.speedBase;
+        
+        // Reset Bato
+        gameState.bato = {
+          x: CANVAS_WIDTH / 2 - 24,
+          y: CANVAS_HEIGHT - 120,
+          vx: 0,
+          width: 48,
+          height: 64,
+          shielded: false,
+          shieldTimer: 0,
+          invisible: false,
+          invisibleTimer: 0,
+          fogActive: false,
+          fogTimer: 0
+        };
+
+        // Arrays flush
+        gameState.obstacles = [];
+        gameState.powerups = [];
+        gameState.particles = [];
+
+        // Triggers
+        gameState.running = true;
+        hudStatusEl.innerText = "EVADING DETENTION...";
+        hudStatusEl.className = "text-[#00ffff] font-bold";
+
+        // Hide overlay screen
+        overlayScreen.classList.add('hidden');
+      }
+
+    </script>
+  </body>
+</html>

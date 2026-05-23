@@ -1,0 +1,6 @@
+{
+  "name": "Bato's Staircase Escape",
+  "description": "A 2D 64-bit retro arcade game where Senator Bato dela Rosa runs endlessly up a winding government staircase to escape ICC arrest warrants. Avoid NBI agents, ICC marshals, and SCOTUS gavels while collecting power-ups.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
